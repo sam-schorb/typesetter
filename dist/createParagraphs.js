@@ -4,7 +4,8 @@
  * These functions are used to prepare text for rendering in a PDF document.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.splitParagraphIntoLines = exports.capitalizeChapterTitle = exports.getNewChapterIndices = exports.getNewParagraphIndices = exports.insertSpaceAfterDash = exports.splitTextIntoParagraphs = void 0;
+exports.createLines = exports.capitalizeChapterTitle = exports.getNewChapterIndices = exports.insertSpaceAfterDash = exports.splitTextIntoParagraphs = void 0;
+const textStyles_1 = require("./textStyles");
 /**
  * Splits a text string into an array of paragraphs.
  * @param {string} textContent - The text content to split into paragraphs.
@@ -24,31 +25,14 @@ function insertSpaceAfterDash(text) {
 }
 exports.insertSpaceAfterDash = insertSpaceAfterDash;
 /**
- * Finds the indices of new paragraphs in an array of paragraphs.
- * @param {string[]} paragraphs - An array of paragraphs.
- * @returns {number[]} An array of indices representing the start of each new paragraph.
- */
-function getNewParagraphIndices(paragraphs) {
-    const newParagraphIndices = [0];
-    let lineCount = 0;
-    paragraphs.forEach((paragraph, index) => {
-        if (index > 0 && paragraph !== '') {
-            newParagraphIndices.push(lineCount);
-        }
-        lineCount += paragraph.split('\n').length;
-    });
-    return newParagraphIndices;
-}
-exports.getNewParagraphIndices = getNewParagraphIndices;
-/**
  * Finds the indices of new chapters in an array of paragraphs.
- * @param {string[]} paragraphs - An array of paragraphs.
+ * @param {string[]} lines - The array of lines.
  * @returns {number[]} An array of indices representing the start of each new chapter.
  */
-function getNewChapterIndices(paragraphs) {
+function getNewChapterIndices(lines) {
     const newChapterIndices = [];
-    paragraphs.forEach((paragraph, index) => {
-        if (paragraph.match(/^CHAPTER \d+\. /)) {
+    lines.forEach((line, index) => {
+        if (line.match(/^CHAPTER \d+\. /)) {
             newChapterIndices.push(index);
         }
     });
@@ -71,38 +55,47 @@ function capitalizeChapterTitle(paragraph) {
 }
 exports.capitalizeChapterTitle = capitalizeChapterTitle;
 /**
- * Splits a paragraph into lines based on the available width and font metrics.
- * @param {string} paragraph - The paragraph to split into lines.
+ * Splits paragraphs into lines based on the available width and font metrics.
+ * @param {string[]} paragraphs - The array of paragraphs to split into lines.
  * @param {PDFFont} font - The font used for text rendering.
  * @param {number} fontSize - The font size used for text rendering.
  * @param {number} textMaxWidth - The maximum width available for the text.
  * @returns {{lines: string[], isLastLine: boolean[], isFirstLine: boolean[]}} - The split lines and their properties.
  */
-function splitParagraphIntoLines(paragraph, font, fontSize, textMaxWidth) {
-    const words = paragraph.split(/\s+/);
+/**
+ * Creates lines from the given paragraphs as words, based on the available width and font metrics.
+ * @param {string[][]} paragraphsAsWordArrays - The array of paragraphs split into words.
+ * @param {PDFFont} font - The font used for text rendering.
+ * @param {number} fontSize - The font size used for text rendering.
+ * @param {number} textMaxWidth - The maximum width available for the text.
+ * @returns {{lines: string[], isLastLine: boolean[], isFirstLine: boolean[]}} - The created lines and their properties.
+ */
+function createLines(paragraphsAsWordArrays, font, fontSize, textMaxWidth) {
     const lines = [];
     const isLastLine = [];
     const isFirstLine = [];
-    let currentLine = '';
-    let isFirstLineOfParagraph = true;
-    const indentationWidth = 18;
-    // Process each word and add it to the lines array
-    for (let i = 0; i < words.length; i++) {
-        const word = words[i];
-        const maxWidth = isFirstLineOfParagraph ? textMaxWidth - indentationWidth : textMaxWidth;
-        const result = addWordToLine(word, currentLine, lines, isLastLine, isFirstLine, isFirstLineOfParagraph, maxWidth, font, fontSize);
-        currentLine = result.currentLine;
-        isFirstLineOfParagraph = result.isFirstLineOfParagraph;
-    }
-    // Process the last line if it's not empty
-    if (currentLine.trim().length > 0) {
-        processLastLine(currentLine, lines, isLastLine, isFirstLine, isFirstLineOfParagraph);
-    }
+    const { parIndent } = textStyles_1.globalStyles;
+    paragraphsAsWordArrays.forEach((wordArray) => {
+        let currentLine = '';
+        let isFirstLineOfParagraph = true;
+        // Process each word and add it to the lines array
+        for (let i = 0; i < wordArray.length; i++) {
+            const word = wordArray[i];
+            const maxWidth = isFirstLineOfParagraph ? textMaxWidth - parIndent : textMaxWidth;
+            const result = addWordToLine(word, currentLine, lines, isLastLine, isFirstLine, isFirstLineOfParagraph, maxWidth, font, fontSize);
+            currentLine = result.currentLine;
+            isFirstLineOfParagraph = result.isFirstLineOfParagraph;
+        }
+        // Process the last line if it's not empty
+        if (currentLine.trim().length > 0) {
+            processLastLine(currentLine, lines, isLastLine, isFirstLine, isFirstLineOfParagraph);
+        }
+    });
     // Handle orphans
     handleOrphans(lines, isLastLine);
     return { lines, isLastLine, isFirstLine };
 }
-exports.splitParagraphIntoLines = splitParagraphIntoLines;
+exports.createLines = createLines;
 /**
  * Adds a word to the current line or starts a new line if the word exceeds the maximum width.
  * @param {string} word - The word to be added.
@@ -151,7 +144,6 @@ function processLastLine(currentLine, lines, isLastLine, isFirstLine, isFirstLin
  * @param {boolean[]} isFirstLine - The array indicating if each line is the first line of a paragraph.
  */
 function handleOrphans(lines, isLastLine) {
-    console.log(lines);
     if (lines.length < 2)
         return; // No need to process if fewer than two lines
     for (let i = 1; i < lines.length; i++) {

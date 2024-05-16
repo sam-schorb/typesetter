@@ -6,6 +6,7 @@
 */
 
 import { PDFFont, PDFPage, rgb } from 'pdf-lib';
+import { globalStyles } from './textStyles';
 
 type RGB = ReturnType<typeof rgb>;
 
@@ -49,7 +50,7 @@ export function drawTextLines(
  let lineIndex = 0;
  let colonEncountered = false;
  let afterColonLineIndex = -1;
- let lastLineOfParagraph = -1;
+ let lastLineOfPreviousParagraph = -1;
  let remainingLinesInParagraph = 0;
 
  /**
@@ -78,8 +79,7 @@ export function drawTextLines(
 
  lines.forEach((line, i) => {
    const isChapterTitle = newChapterIndices.includes(i) && /^CHAPTER \d+\./i.test(line.trim());
-   const { [i]: isFirstLineOfParagraph } = isFirstLine;
-   const { [i]: isLastLineOfParagraph } = isLastLine;
+
 
    // Start a new page for chapter titles or new chapters
    if (isChapterTitle || newChapterIndices.includes(lineIndex)) {
@@ -87,17 +87,12 @@ export function drawTextLines(
    }
 
    // Calculate remaining lines in the paragraph
-   if (isFirstLineOfParagraph) {
+   if (isFirstLine[i]) {
      remainingLinesInParagraph = calculateRemainingLinesInParagraph(i);
    }
 
-   // Prevent orphans at the start of the page
-   if (remainingLinesInParagraph <= 3 && remainingSpace < remainingLinesInParagraph * lineHeight) {
-     startNewPage();
-   }
-
    // Prevent widows at the end of the page
-   if (isFirstLineOfParagraph && remainingSpace < 3 * lineHeight && remainingLinesInParagraph > 3) {
+   if (isFirstLine[i] && remainingSpace < 3 * lineHeight && remainingLinesInParagraph > 3) {
      startNewPage();
    }
 
@@ -110,12 +105,12 @@ export function drawTextLines(
    if (line === '') {
      yPos -= paragraphBreakHeight;
      remainingSpace -= paragraphBreakHeight;
-     if (colonEncountered && lastLineOfParagraph >= 0) {
+     if (colonEncountered && lastLineOfPreviousParagraph >= 0) {
        yPos -= lineHeight;
        remainingSpace -= lineHeight;
        colonEncountered = false;
        afterColonLineIndex = -1;
-       lastLineOfParagraph = -1;
+       lastLineOfPreviousParagraph = -1;
      }
    } else {
      // Draw the justified line of text
@@ -129,8 +124,8 @@ export function drawTextLines(
        font,
        color,
        textMaxWidth,
-       isLastLineOfParagraph,
-       isFirstLineOfParagraph,
+       isLastLine[i],
+       isFirstLine[i],
        isChapterTitle
      );
      yPos -= lineHeight;
@@ -146,16 +141,16 @@ export function drawTextLines(
        afterColonLineIndex = i;
      }
 
-     if (isLastLineOfParagraph) {
-       lastLineOfParagraph = i;
+     if (isLastLine[i]) {
+       lastLineOfPreviousParagraph = i;
      }
 
-     if (colonEncountered && lastLineOfParagraph > afterColonLineIndex) {
+     if (colonEncountered && lastLineOfPreviousParagraph > afterColonLineIndex) {
        yPos -= lineHeight;
        remainingSpace -= lineHeight;
        colonEncountered = false;
        afterColonLineIndex = -1;
-       lastLineOfParagraph = -1;
+       lastLineOfPreviousParagraph = -1;
      }
 
      // Add extra space after chapter titles
@@ -184,7 +179,7 @@ export function drawTextLines(
 * @param {RGB} color - The color of the text.
 * @param {number} textMaxWidth - The maximum width of the text on the page.
 * @param {boolean} isLastLine - Indicates whether the line is the last line of a paragraph.
-* @param {boolean} isFirstLineOfParagraph - Indicates whether the line is the first line of a paragraph.
+* @param {boolean} isFirstLine - Indicates whether the line is the first line of a paragraph.
 * @param {boolean} isChapterTitle - Indicates whether the line is a chapter title.
 */
 function drawJustifiedLine(
@@ -198,14 +193,14 @@ function drawJustifiedLine(
  color: RGB,
  textMaxWidth: number,
  isLastLine: boolean,
- isFirstLineOfParagraph: boolean,
+ isFirstLine: boolean,
  isChapterTitle: boolean
 ): void {
  const words = line.split(' ');
  const lineWidth = font.widthOfTextAtSize(line, fontSize);
- const indentationWidth = 18;
+ const { parIndentWidth } = globalStyles;
 
- const xPos = (isFirstLineOfParagraph && !isChapterTitle) ? margin + indentationWidth : margin;
+ const xPos = (isFirstLine && !isChapterTitle) ? margin + parIndentWidth : margin;
  const currentFontSize = isChapterTitle ? chapterTitleFontSize : fontSize;
 
  if (isLastLine) {
@@ -213,7 +208,7 @@ function drawJustifiedLine(
    page.drawText(line, { x: xPos, y: yPos, size: currentFontSize, font, color });
  } else {
    // Calculate the available width and extra space for justification
-   const availableWidth = (isFirstLineOfParagraph && !isChapterTitle) ? textMaxWidth - indentationWidth : textMaxWidth;
+   const availableWidth = (isFirstLine && !isChapterTitle) ? textMaxWidth - parIndentWidth : textMaxWidth;
    const extraSpace = availableWidth - lineWidth;
    const numSpaces = words.length - 1;
    const spaceWidth = font.widthOfTextAtSize(' ', fontSize);

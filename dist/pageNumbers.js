@@ -13,9 +13,9 @@ const pdf_lib_1 = require("pdf-lib");
 const textStyles_1 = require("./textStyles");
 async function addPageNumbers(pdfDoc) {
     const pages = pdfDoc.getPages();
-    const { fontName, margin } = textStyles_1.globalStyles;
+    const { margin } = textStyles_1.globalStyles;
     // Embed the font for rendering page numbers
-    const pageNumberFont = await pdfDoc.embedFont(fontName);
+    const pageNumberFont = await (0, textStyles_1.loadFont)(pdfDoc);
     const pageNumberFontSize = 10;
     const pageNumberColor = (0, pdf_lib_1.rgb)(0, 0, 0);
     const pageNumberMargin = margin / 1.25;

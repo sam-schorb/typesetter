@@ -7,14 +7,15 @@
  * @returns {Promise<void>}
  */
 import { PDFDocument, rgb, degrees, BlendMode } from 'pdf-lib';
-import { globalStyles } from './textStyles';
+import { globalStyles, loadFont } from './textStyles';
 
 export async function addPageNumbers(pdfDoc: PDFDocument) {
   const pages = pdfDoc.getPages();
-  const { fontName, margin } = globalStyles;
+  const { margin } = globalStyles;
 
   // Embed the font for rendering page numbers
-  const pageNumberFont = await pdfDoc.embedFont(fontName);
+  const pageNumberFont =  await loadFont(pdfDoc);
+
   const pageNumberFontSize = 10;
   const pageNumberColor = rgb(0, 0, 0);
   const pageNumberMargin = margin / 1.25;

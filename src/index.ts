@@ -1,16 +1,9 @@
-// src/index.ts
 import { PDFDocument } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { bodyTextStyle, chapterTitleStyle, globalStyles } from './textStyles';
-import {
-  capitalizeChapterTitle,
-  splitTextIntoParagraphs,
-  splitParagraphIntoLines,
-  getNewChapterIndices,
-  insertSpaceAfterDash,
-} from './createParagraphs';
+import { bodyTextStyle, chapterTitleStyle, globalStyles, loadFont } from './textStyles';
+import { capitalizeChapterTitle, splitTextIntoParagraphs, createLines, getNewChapterIndices, insertSpaceAfterDash } from './createParagraphs';
 import { drawTextLines } from './drawText';
 import { addPageNumbers } from './pageNumbers';
 
@@ -28,13 +21,12 @@ async function createPDF(): Promise<void> {
 
   // Get page dimensions and global styles
   const { width, height } = page.getSize();
-  const { margin, fontName, paragraphBreakHeight, minLinesThreshold } = globalStyles;
+  const { margin, paragraphBreakHeight } = globalStyles;
   const { size: fontSize, color, lineHeight } = bodyTextStyle;
   const { size: chapterTitleFontSize } = chapterTitleStyle;
 
   // Load and embed the font
-  const fontBytes = await readFile(join(__dirname, '..', 'fonts', 'GoudyModernMTStd.ttf'));
-  const font = await pdfDoc.embedFont(fontBytes, { subset: true });
+  const font = await loadFont(pdfDoc);
 
   // Read and process the text content
   const textContent = await readFile(join(__dirname, '..', 'example.txt'), 'utf8');
@@ -42,21 +34,10 @@ async function createPDF(): Promise<void> {
   const textContentNoDashes = insertSpaceAfterDash(textContent);
   const paragraphs = splitTextIntoParagraphs(textContentNoDashes);
   const capitalizedParagraphs = paragraphs.map(capitalizeChapterTitle);
+  const paragraphsAsWordArrays = capitalizedParagraphs.map((paragraph) => paragraph.split(/\s+/));
 
-  // Split paragraphs into lines
-  const lines: string[] = [];
-  const isLastLine: boolean[] = [];
-  const isFirstLine: boolean[] = [];
-  capitalizedParagraphs.forEach((paragraph) => {
-    const {
-      lines: paragraphLines,
-      isLastLine: paragraphIsLastLine,
-      isFirstLine: paragraphIsFirstLine,
-    } = splitParagraphIntoLines(paragraph, font, fontSize, textMaxWidth);
-    lines.push(...paragraphLines);
-    isLastLine.push(...paragraphIsLastLine);
-    isFirstLine.push(...paragraphIsFirstLine);
-  });
+  // Create lines from paragraphs as words
+  const { lines, isLastLine, isFirstLine } = createLines(paragraphsAsWordArrays, font, fontSize, textMaxWidth);
 
   // Get new chapter indices
   const newChapterIndices = getNewChapterIndices(lines);

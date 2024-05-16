@@ -4,6 +4,7 @@
  */
 
 import { PDFFont } from 'pdf-lib';
+import { globalStyles } from './textStyles';
 
 /**
  * Splits a text string into an array of paragraphs.
@@ -24,34 +25,15 @@ export function insertSpaceAfterDash(text: string): string {
 }
 
 /**
- * Finds the indices of new paragraphs in an array of paragraphs.
- * @param {string[]} paragraphs - An array of paragraphs.
- * @returns {number[]} An array of indices representing the start of each new paragraph.
- */
-export function getNewParagraphIndices(paragraphs: string[]): number[] {
-  const newParagraphIndices: number[] = [0];
-  let lineCount = 0;
-
-  paragraphs.forEach((paragraph, index) => {
-    if (index > 0 && paragraph !== '') {
-      newParagraphIndices.push(lineCount);
-    }
-    lineCount += paragraph.split('\n').length;
-  });
-
-  return newParagraphIndices;
-}
-
-/**
  * Finds the indices of new chapters in an array of paragraphs.
- * @param {string[]} paragraphs - An array of paragraphs.
+ * @param {string[]} lines - The array of lines.
  * @returns {number[]} An array of indices representing the start of each new chapter.
  */
-export function getNewChapterIndices(paragraphs: string[]): number[] {
+export function getNewChapterIndices(lines: string[]): number[] {
   const newChapterIndices: number[] = [];
 
-  paragraphs.forEach((paragraph, index) => {
-    if (paragraph.match(/^CHAPTER \d+\. /)) {
+  lines.forEach((line, index) => {
+    if (line.match(/^CHAPTER \d+\. /)) {
       newChapterIndices.push(index);
     }
   });
@@ -74,53 +56,55 @@ export function capitalizeChapterTitle(paragraph: string): string {
   return paragraph;
 }
 
+
 /**
- * Splits a paragraph into lines based on the available width and font metrics.
- * @param {string} paragraph - The paragraph to split into lines.
+ * Creates lines from the given paragraphs as wordArrays, based on the available width and font metrics.
+ * @param {string[][]} paragraphsAsWordArrays - The array of paragraphs split into words.
  * @param {PDFFont} font - The font used for text rendering.
  * @param {number} fontSize - The font size used for text rendering.
  * @param {number} textMaxWidth - The maximum width available for the text.
- * @returns {{lines: string[], isLastLine: boolean[], isFirstLine: boolean[]}} - The split lines and their properties.
+ * @returns {{lines: string[], isLastLine: boolean[], isFirstLine: boolean[]}} - The created lines and their properties.
  */
-export function splitParagraphIntoLines(
-  paragraph: string,
+export function createLines(
+  paragraphsAsWordArrays: string[][],
   font: PDFFont,
   fontSize: number,
   textMaxWidth: number
 ): { lines: string[]; isLastLine: boolean[]; isFirstLine: boolean[] } {
-  const words = paragraph.split(/\s+/);
   const lines: string[] = [];
   const isLastLine: boolean[] = [];
   const isFirstLine: boolean[] = [];
-  let currentLine = '';
-  let isFirstLineOfParagraph = true;
-  const indentationWidth = 18;
 
-  // Process each word and add it to the lines array
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    const maxWidth = isFirstLineOfParagraph ? textMaxWidth - indentationWidth : textMaxWidth;
+  const { parIndentWidth } = globalStyles;
 
-    const result = addWordToLine(
-      word,
-      currentLine,
-      lines,
-      isLastLine,
-      isFirstLine,
-      isFirstLineOfParagraph,
-      maxWidth,
-      font,
-      fontSize
-    );
+  paragraphsAsWordArrays.forEach((wordArray) => {
+    let currentLine = '';
+    let isFirstLineOfParagraph = true;
 
-    currentLine = result.currentLine;
-    isFirstLineOfParagraph = result.isFirstLineOfParagraph;
-  }
+    // Process each word and add it to the lines array
+    for (let i = 0; i < wordArray.length; i++) {
+      const word = wordArray[i];
+      const maxWidth = isFirstLineOfParagraph ? textMaxWidth - parIndentWidth : textMaxWidth;
+      const result = addWordToLine(
+        word,
+        currentLine,
+        lines,
+        isLastLine,
+        isFirstLine,
+        isFirstLineOfParagraph,
+        maxWidth,
+        font,
+        fontSize
+      );
+      currentLine = result.currentLine;
+      isFirstLineOfParagraph = result.isFirstLineOfParagraph;
+    }
 
-  // Process the last line if it's not empty
-  if (currentLine.trim().length > 0) {
-    processLastLine(currentLine, lines, isLastLine, isFirstLine, isFirstLineOfParagraph);
-  }
+    // Process the last line if it's not empty
+    if (currentLine.trim().length > 0) {
+      processLastLine(currentLine, lines, isLastLine, isFirstLine, isFirstLineOfParagraph);
+    }
+  });
 
   // Handle orphans
   handleOrphans(lines, isLastLine);
@@ -198,7 +182,7 @@ function processLastLine(
 function handleOrphans(
   lines: string[],
   isLastLine: boolean[],
-): void {console.log(lines)
+): void {
 
   if (lines.length < 2) return; // No need to process if fewer than two lines
 
